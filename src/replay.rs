@@ -177,7 +177,7 @@ impl<M: Meta + Clone> Replay<M> {
         self.write_v3(writer)
     }
 
-    fn write_v2<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
+    pub fn write_v2<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
         let replay = v2::replay::Replay {
             tps: self.tps,
             meta: self.meta.clone(), // yeah cloning is not nice but it makes the api nicer idc
