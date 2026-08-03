@@ -2,7 +2,7 @@
 
 A tiny and incredibly fast replay format for Geometry Dash.
 
-Requires Rust nightly, at least version `1.87.0`.
+Requires Rust version `1.86.0` or higher.
 
 ## Documentation
 

@@ -2,6 +2,7 @@
 name = "slc_oxide"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.86.0"
 license = "MIT"
 description = "A tiny and fast replay format for Geometry Dash"
 readme = "README.md"
