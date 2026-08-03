@@ -40,10 +40,12 @@ pub enum ReplayError {
     InvalidMetadataSize,
     #[error("Invalid footer")]
     InvalidFooter,
-    #[error("IO error: {0}")]
-    IOError(#[from] std::io::Error),
+    #[error("Invalid player button: {0}")]
+    InvalidPlayerButton(u8),
     #[error("Atom error: {0}")]
     AtomError(#[from] super::atom::AtomError),
+    #[error("IO error: {0}")]
+    IOError(#[from] std::io::Error),
 }
 
 impl Replay {

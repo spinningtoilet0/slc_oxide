@@ -74,18 +74,29 @@ impl Replay {
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
+        Self::write_inner(writer, self.tps, &self.meta, &self.inputs)?;
+
+        Ok(())
+    }
+
+    // theres probably
+    pub(crate) fn write_inner<W: Write>(
+        writer: &mut W,
+        tps: f64,
+        meta: &[u8],
+        inputs: &[Input],
+    ) -> Result<(), ReplayError> {
         writer.write_all(&Self::HEADER)?;
 
-        writer.write_all(&self.tps.to_le_bytes())?;
-        writer.write_all(&(self.meta.len() as u64).to_le_bytes())?;
-        writer.write_all(self.meta.as_slice())?;
-
-        writer.write_all(&(self.inputs.len() as u64).to_le_bytes())?;
+        writer.write_all(&tps.to_le_bytes())?;
+        writer.write_all(&(meta.len() as u64).to_le_bytes())?;
+        writer.write_all(&meta)?;
+        writer.write_all(&(inputs.len() as u64).to_le_bytes())?;
 
         let mut blobs: Vec<Blob> = Vec::new();
 
         // First blob pass
-        self.inputs.iter().enumerate().for_each(|(i, input)| {
+        inputs.iter().enumerate().for_each(|(i, input)| {
             let byte_size = input.required_bytes();
             if blobs.is_empty() {
                 blobs.push(Blob {
@@ -157,7 +168,7 @@ impl Replay {
         blobs.iter().try_for_each(|b| b.write(writer))?;
         blobs
             .iter()
-            .try_for_each(|b| b.write_inputs(writer, self.inputs.as_slice()))?;
+            .try_for_each(|b| b.write_inputs(writer, inputs))?;
 
         writer.write_all(&Self::FOOTER)?;
 
