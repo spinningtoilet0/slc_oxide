@@ -26,7 +26,7 @@ impl Replay {
     pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError> {
         let mut header_buf = [0u8; 8];
         reader.read_exact(&mut header_buf)?;
-        reader.seek(std::io::SeekFrom::Start(0))?;
+        reader.seek(std::io::SeekFrom::Current(-8))?;
 
         if header_buf[0..4] == v2::replay::Replay::HEADER {
             Ok(Replay::V2(v2::replay::Replay::read(reader)?))
