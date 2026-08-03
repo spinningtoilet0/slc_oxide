@@ -172,9 +172,9 @@ impl<M: Meta + Clone> Replay<M> {
         Ok(replay)
     }
 
-    /// Write the replay to a stream in v2 format.
+    /// Write the replay to a stream in v3 format.
     pub fn write<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
-        self.write_v2(writer)
+        self.write_v3(writer)
     }
 
     fn write_v2<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
