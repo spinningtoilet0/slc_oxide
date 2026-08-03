@@ -9,6 +9,7 @@ use crate::{
     blob::Blob,
     input::{Input, InputData},
     meta::Meta,
+    v2, v3,
 };
 
 /// An slc replay.
@@ -82,10 +83,6 @@ pub enum ReplayError {
     InvalidV3PlayerButton(u8),
 }
 
-pub const V2_HEADER: [u8; 4] = *b"SILL";
-pub const V2_FOOTER: [u8; 3] = *b"EOM";
-pub const V3_HEADER: [u8; 8] = *b"SLC3RPLY";
-
 impl<M: Meta> Replay<M> {
     /// Create a new slc replay with the specified tps and meta.
     pub fn new(tps: f64, meta: M) -> Self {
@@ -123,9 +120,9 @@ impl<M: Meta> Replay<M> {
         reader.read_exact(&mut header_buf)?;
         reader.seek(std::io::SeekFrom::Start(0))?;
 
-        if header_buf[0..4] == V2_HEADER {
+        if header_buf[0..4] == v2::replay::Replay::HEADER {
             Self::read_v2(reader)
-        } else if header_buf[0..8] == V3_HEADER {
+        } else if header_buf[0..8] == v3::replay::Replay::HEADER {
             Self::read_v3(reader)
         } else {
             Err(ReplayError::UnknownFormat)
@@ -136,7 +133,7 @@ impl<M: Meta> Replay<M> {
         let mut header_buf = [0u8; 4];
         reader.read_exact(&mut header_buf)?;
 
-        if header_buf != V2_HEADER {
+        if header_buf != v2::replay::Replay::HEADER {
             return Err(ReplayError::HeaderMismatchError);
         }
 
@@ -173,7 +170,7 @@ impl<M: Meta> Replay<M> {
 
         let mut footer_buf = [0u8; 3];
         reader.read_exact(&mut footer_buf)?;
-        if footer_buf != V2_FOOTER {
+        if footer_buf != v2::replay::Replay::FOOTER {
             return Err(ReplayError::FooterMismatchError);
         }
 
@@ -228,7 +225,7 @@ impl<M: Meta> Replay<M> {
     }
 
     fn write_v2<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
-        writer.write_all(&V2_HEADER)?;
+        writer.write_all(&v2::replay::Replay::HEADER)?;
 
         writer.write_all(&self.tps.to_le_bytes())?;
         writer.write_all(&M::size().to_le_bytes())?;
@@ -313,7 +310,7 @@ impl<M: Meta> Replay<M> {
             .iter()
             .try_for_each(|b| b.write_inputs(writer, self.inputs.as_slice()))?;
 
-        writer.write_all(&V2_FOOTER)?;
+        writer.write_all(&v2::replay::Replay::FOOTER)?;
 
         Ok(())
     }

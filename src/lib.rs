@@ -7,6 +7,7 @@ pub(crate) mod blob;
 pub mod input;
 pub mod meta;
 pub mod replay;
+pub mod v2;
 pub mod v3;
 
 #[allow(deprecated)]
