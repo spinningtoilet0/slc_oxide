@@ -23,10 +23,12 @@ pub enum Replay {
 
 impl Replay {
     /// Read the replay from a stream.
+    ///
+    /// This function expects that the start of the stream is the start of the SLC file, and that the end has no extra bytes.
     pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError> {
         let mut header_buf = [0u8; 8];
         reader.read_exact(&mut header_buf)?;
-        reader.seek(std::io::SeekFrom::Current(-8))?;
+        reader.seek(std::io::SeekFrom::Start(0))?;
 
         if header_buf[0..4] == v2::replay::Replay::HEADER {
             Ok(Replay::V2(v2::replay::Replay::read(reader)?))
