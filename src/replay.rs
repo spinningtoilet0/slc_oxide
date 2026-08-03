@@ -82,8 +82,8 @@ pub enum ReplayError {
     InvalidV3PlayerButton(u8),
 }
 
-pub const V2_HEADER: [u8; 4] = [0x53, 0x49, 0x4C, 0x4C];
-pub const V2_FOOTER: [u8; 3] = [0x45, 0x4F, 0x4D];
+pub const V2_HEADER: [u8; 4] = *b"SILL";
+pub const V2_FOOTER: [u8; 3] = *b"EOM";
 pub const V3_HEADER: [u8; 8] = *b"SLC3RPLY";
 
 impl<M: Meta> Replay<M> {
