@@ -2,7 +2,7 @@ use std::io::{Read, Seek, Write};
 use thiserror::Error;
 
 use super::atom::{AtomRegistry, AtomVariant};
-use super::metadata::{Metadata, METADATA_SIZE};
+use super::metadata::{METADATA_SIZE, Metadata};
 
 /// An SLC3 format replay.
 ///

@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use super::action::{Action, ActionType};
 use super::atom::{Atom, AtomError, AtomId};
-use super::section::{largest_power_of_two, Section};
+use super::section::{Section, largest_power_of_two};
 
 pub struct ActionAtom {
     pub actions: Vec<Action>,

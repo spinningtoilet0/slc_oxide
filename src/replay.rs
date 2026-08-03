@@ -181,8 +181,8 @@ impl<M: Meta> Replay<M> {
     }
 
     fn read_v3<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError> {
-        use crate::v3::atom::AtomVariant;
         use crate::v3::ActionType;
+        use crate::v3::atom::AtomVariant;
 
         let v3_replay = crate::v3::Replay::read(reader)?;
 
