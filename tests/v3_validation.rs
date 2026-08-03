@@ -266,7 +266,7 @@ fn rejects_sections_that_exceed_the_declared_action_count() {
     ));
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct StrictMeta([u8; 4]);
 
 impl Meta for StrictMeta {

@@ -1,5 +1,4 @@
 use std::io::{Read, Write};
-
 use thiserror::Error;
 
 use crate::input::Input;

@@ -57,6 +57,7 @@ impl Meta for () {
     }
 
     fn from_bytes(_bytes: &[u8]) -> Self {}
+
     fn to_bytes(&self) -> Box<[u8]> {
         Box::new([])
     }
