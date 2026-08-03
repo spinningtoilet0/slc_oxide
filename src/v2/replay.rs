@@ -5,11 +5,11 @@ use std::{
 
 use thiserror::Error;
 
-use crate::v2::{blob::Blob, input::Input, meta::Meta};
+use crate::v2::{blob::Blob, input::Input};
 
-pub struct Replay<M: Meta> {
+pub struct Replay {
     pub tps: f64,
-    pub meta: M,
+    pub meta: Vec<u8>,
     pub inputs: Vec<Input>,
 }
 
@@ -17,8 +17,6 @@ pub struct Replay<M: Meta> {
 pub enum ReplayError {
     #[error("Header mismatch error")]
     HeaderMismatchError,
-    #[error("Meta size mismatch error")]
-    MetaSizeMismatchError,
     #[error("Footer mismatch error")]
     FooterMismatchError,
     #[error("Blob error: {0}")]
@@ -27,7 +25,7 @@ pub enum ReplayError {
     IOError(#[from] std::io::Error),
 }
 
-impl<M: Meta> Replay<M> {
+impl Replay {
     pub const HEADER: [u8; 4] = *b"SILL";
     pub const FOOTER: [u8; 3] = *b"EOM";
 
@@ -45,13 +43,9 @@ impl<M: Meta> Replay<M> {
 
         reader.read_exact(&mut big_buf)?;
         let meta_size = u64::from_le_bytes(big_buf);
-        if meta_size != M::size() {
-            return Err(ReplayError::MetaSizeMismatchError);
-        }
 
-        let mut meta_buf = vec![0u8; M::size() as usize];
-        reader.read_exact(meta_buf.as_mut_slice())?;
-        let meta = M::from_bytes(meta_buf.as_slice());
+        let mut meta = vec![0u8; meta_size as usize];
+        reader.read_exact(meta.as_mut_slice())?;
 
         reader.read_exact(&mut big_buf)?;
         let length = u64::from_le_bytes(big_buf);
@@ -83,8 +77,8 @@ impl<M: Meta> Replay<M> {
         writer.write_all(&Self::HEADER)?;
 
         writer.write_all(&self.tps.to_le_bytes())?;
-        writer.write_all(&M::size().to_le_bytes())?;
-        writer.write_all(&self.meta.to_bytes())?;
+        writer.write_all(&(self.meta.len() as u64).to_le_bytes())?;
+        writer.write_all(self.meta.as_slice())?;
 
         writer.write_all(&(self.inputs.len() as u64).to_le_bytes())?;
 

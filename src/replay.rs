@@ -16,19 +16,19 @@ pub enum ReplayError {
     IOError(#[from] std::io::Error),
 }
 
-pub enum Replay<V2Metadata: v2::meta::Meta = ()> {
-    V2(v2::replay::Replay<V2Metadata>),
+pub enum Replay {
+    V2(v2::replay::Replay),
     V3(v3::replay::Replay),
 }
 
-impl<V2Metadata: v2::meta::Meta> Replay<V2Metadata> {
+impl Replay {
     /// Read the replay from a stream.
     pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError> {
         let mut header_buf = [0u8; 8];
         reader.read_exact(&mut header_buf)?;
         reader.seek(std::io::SeekFrom::Start(0))?;
 
-        if header_buf[0..4] == v2::replay::Replay::<V2Metadata>::HEADER {
+        if header_buf[0..4] == v2::replay::Replay::HEADER {
             Ok(Replay::V2(v2::replay::Replay::read(reader)?))
         } else if header_buf[0..8] == v3::replay::Replay::HEADER {
             Ok(Replay::V3(v3::replay::Replay::read(reader)?))
