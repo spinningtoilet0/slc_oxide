@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use thiserror::Error;
 
-use crate::input::Input;
+use crate::v2::input::Input;
 
 pub struct Blob {
     pub byte_size: u64,
@@ -14,7 +14,7 @@ pub enum BlobError {
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
     #[error("Input error: {0}")]
-    InputError(#[from] crate::input::InputError),
+    InputError(#[from] crate::v2::input::InputError),
 }
 
 impl Blob {

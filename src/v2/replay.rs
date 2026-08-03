@@ -5,7 +5,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{input::Input, meta::Meta, v2::blob::Blob};
+use crate::v2::{blob::Blob, input::Input, meta::Meta};
 
 pub struct Replay<M: Meta> {
     pub tps: f64,
