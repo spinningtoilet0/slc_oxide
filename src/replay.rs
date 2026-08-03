@@ -18,7 +18,7 @@ use crate::{
 /// You may specify your own custom meta through the `M` generic type. See [`slc_oxide::meta::Meta`] for further details.
 ///
 /// # Examples
-/// ```
+/// ```ignore
 /// struct ReplayMeta {
 ///   pub seed: u64
 /// }
