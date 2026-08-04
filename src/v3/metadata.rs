@@ -40,6 +40,8 @@ impl Metadata {
         reader.read_exact(&mut buf4)?;
         let randomness_algorithm = u32::from_le_bytes(buf4);
 
+        reader.read_exact(&mut [0u8; 36])?;
+
         Ok(Self {
             tps,
             seed,
