@@ -6,3 +6,5 @@
 pub mod replay;
 pub mod v2;
 pub mod v3;
+
+pub use replay::Replay;

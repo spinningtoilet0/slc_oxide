@@ -1,26 +1,7 @@
-use slc_oxide::{Meta, Replay};
+use slc_oxide::Replay;
 use std::fs;
 use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct TestMeta([u8; 64]);
-
-impl Meta for TestMeta {
-    fn size() -> u64 {
-        64
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Self {
-        let mut data = [0u8; 64];
-        data[..bytes.len().min(64)].copy_from_slice(&bytes[..bytes.len().min(64)]);
-        TestMeta(data)
-    }
-
-    fn to_bytes(&self) -> Box<[u8]> {
-        Box::from(self.0.as_slice())
-    }
-}
 
 #[test]
 fn test_macro_files_roundtrip() {
@@ -37,17 +18,24 @@ fn test_macro_files_roundtrip() {
         if path.extension().and_then(|s| s.to_str()) == Some("slc") {
             let file_data = fs::read(&path).expect("Failed to read file");
 
-            let mut reader = BufReader::new(Cursor::new(&file_data));
-            let replay = Replay::<TestMeta>::read(&mut reader).expect("Failed to parse replay");
+            let mut reader = Cursor::new(&file_data);
+            let replay = Replay::read(&mut reader)
+                .expect("Failed to parse replay")
+                .to_generic_replay();
 
             let mut v2_buffer = Vec::new();
+
             replay
-                .write(&mut v2_buffer)
+                .write_v2(&mut v2_buffer, &[])
                 .expect("Failed to write v2 replay");
 
-            let mut reader2 = BufReader::new(Cursor::new(&v2_buffer));
-            let replay2 =
-                Replay::<TestMeta>::read(&mut reader2).expect("Failed to re-parse v2 replay");
+            let mut reader2 = Cursor::new(&v2_buffer);
+            let replay2 = Replay::read(&mut reader2).expect("Failed to re-parse replay");
+
+            let replay2 = match replay2 {
+                Replay::V2(x) => x,
+                Replay::V3(_) => panic!("wrong format!"),
+            };
 
             assert_eq!(replay.tps, replay2.tps);
             assert_eq!(replay.inputs.len(), replay2.inputs.len());
@@ -70,13 +58,15 @@ fn test_macro_files_roundtrip() {
             }
 
             let mut v3_buffer = Vec::new();
+
             replay
-                .write_v3(&mut v3_buffer)
+                .write_v3(&mut v3_buffer, 0, 0)
                 .expect("Failed to write v3 replay");
 
             let mut reader3 = BufReader::new(Cursor::new(&v3_buffer));
-            let replay3 =
-                Replay::<TestMeta>::read(&mut reader3).expect("Failed to parse v3 replay");
+            let replay3 = Replay::read(&mut reader3)
+                .expect("Failed to parse v3 replay")
+                .to_generic_replay();
 
             assert_eq!(replay.tps, replay3.tps);
             assert_eq!(replay.inputs.len(), replay3.inputs.len());

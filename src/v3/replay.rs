@@ -1,6 +1,9 @@
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
 
+use crate::replay::GenericReplay;
+use crate::v3::ActionType;
+
 use super::atom::{AtomRegistry, AtomVariant};
 use super::metadata::{METADATA_SIZE, Metadata};
 
@@ -109,6 +112,47 @@ impl Replay {
         writer.write_all(&[Self::FOOTER])?;
 
         Ok(())
+    }
+
+    pub fn to_generic_replay(self) -> GenericReplay {
+        let mut replay = GenericReplay {
+            tps: self.metadata.tps,
+            inputs: Vec::new(),
+        };
+
+        use crate::v2::input::{InputData, PlayerInput};
+
+        for atom in &self.atoms.atoms {
+            if let AtomVariant::Action(action_atom) = atom {
+                for action in &action_atom.actions {
+                    let data = match action.action_type {
+                        ActionType::Jump | ActionType::Left | ActionType::Right => {
+                            let button = match action.action_type {
+                                ActionType::Jump => 1,
+                                ActionType::Left => 2,
+                                ActionType::Right => 3,
+                                _ => 1,
+                            };
+                            InputData::Player(PlayerInput {
+                                hold: action.holding,
+                                player_2: action.player2,
+                                button,
+                            })
+                        }
+                        ActionType::Restart => InputData::Restart,
+                        ActionType::RestartFull => InputData::RestartFull,
+                        ActionType::Death => InputData::Death,
+                        ActionType::TPS => InputData::TPS(action.tps),
+                        ActionType::Bugpoint => InputData::Skip,
+                        ActionType::Reserved => InputData::Skip,
+                    };
+
+                    replay.add_input(action.frame, data);
+                }
+            }
+        }
+
+        replay
     }
 
     pub fn add_atom(&mut self, atom: AtomVariant) {

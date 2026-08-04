@@ -1,11 +1,11 @@
+use slc_oxide::Replay;
+use slc_oxide::replay::GenericReplay;
+use slc_oxide::v2::input::{InputData, PlayerInput};
 use slc_oxide::v3::atom::{AtomError, AtomVariant, OpaqueAtom};
 use slc_oxide::v3::builtin::ActionAtom;
 use slc_oxide::v3::replay::ReplayError as V3ReplayError;
 use slc_oxide::v3::section::SectionError;
 use slc_oxide::v3::{Action, ActionType, Metadata, Replay as V3Replay};
-use slc_oxide::{
-    InputData, Meta, PlayerInput, Replay as GenericReplay, ReplayError as GenericReplayError,
-};
 use std::io::Cursor;
 
 const ATOMS_OFFSET: usize = 8 + 2 + 64;
@@ -266,37 +266,30 @@ fn rejects_sections_that_exceed_the_declared_action_count() {
     ));
 }
 
-#[derive(Debug, PartialEq, Clone)]
-struct StrictMeta([u8; 4]);
-
-impl Meta for StrictMeta {
-    fn size() -> u64 {
-        4
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Self {
-        Self(
-            bytes
-                .try_into()
-                .expect("Meta contract requires exactly four bytes"),
-        )
-    }
-
-    fn to_bytes(&self) -> Box<[u8]> {
-        Box::new(self.0)
-    }
-}
-
 #[test]
 fn generic_v3_conversion_honors_meta_contract_and_reports_errors() {
     let direct = V3Replay::new(Metadata::new(240.0, 0, 1));
     let mut bytes = Vec::new();
-    direct.write(&mut bytes).unwrap();
 
-    let decoded = GenericReplay::<StrictMeta>::read(&mut Cursor::new(bytes)).unwrap();
-    assert_eq!(decoded.meta, StrictMeta([0; 4]));
+    direct
+        .to_generic_replay()
+        .write_v2(&mut bytes, &[67, 69, 41])
+        .unwrap();
 
-    let mut invalid_button = GenericReplay::new(240.0, ());
+    let decoded = Replay::read(&mut Cursor::new(bytes)).unwrap();
+
+    let decoded = match decoded {
+        Replay::V2(x) => x,
+        Replay::V3(_) => panic!("incorrect replay format"),
+    };
+
+    assert_eq!(decoded.meta, &[67, 69, 41]);
+
+    let mut invalid_button = GenericReplay {
+        tps: 240.0,
+        inputs: Vec::new(),
+    };
+
     invalid_button.add_input(
         1,
         InputData::Player(PlayerInput {
@@ -305,15 +298,23 @@ fn generic_v3_conversion_honors_meta_contract_and_reports_errors() {
             button: 9,
         }),
     );
+
+    use slc_oxide::replay::ReplayError;
+
     assert!(matches!(
-        invalid_button.write_v3(&mut Vec::new()),
-        Err(GenericReplayError::InvalidV3PlayerButton(9))
+        invalid_button.write_v3(&mut Vec::new(), 0, 0),
+        Err(ReplayError::V3Error(V3ReplayError::InvalidPlayerButton(9)))
     ));
 
-    let mut invalid_tps = GenericReplay::new(240.0, ());
+    let mut invalid_tps = GenericReplay {
+        tps: 240.0,
+        inputs: Vec::new(),
+    };
     invalid_tps.add_input(1, InputData::TPS(-1.0));
     assert!(matches!(
-        invalid_tps.write_v3(&mut Vec::new()),
-        Err(GenericReplayError::V3AtomError(AtomError::InvalidTPS(_)))
+        invalid_tps.write_v3(&mut Vec::new(), 0, 0),
+        Err(ReplayError::V3Error(V3ReplayError::AtomError(
+            AtomError::InvalidTPS(_)
+        )))
     ));
 }

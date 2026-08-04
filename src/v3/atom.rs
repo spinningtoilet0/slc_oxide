@@ -70,6 +70,7 @@ impl OpaqueAtom {
     }
 }
 
+#[derive(Debug)]
 pub enum AtomVariant {
     Opaque(OpaqueAtom),
     Action(super::builtin::ActionAtom),

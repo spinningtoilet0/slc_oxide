@@ -4,6 +4,7 @@ use super::action::{Action, ActionType};
 use super::atom::{Atom, AtomError, AtomId};
 use super::section::{Section, largest_power_of_two};
 
+#[derive(Debug)]
 pub struct ActionAtom {
     pub actions: Vec<Action>,
 }

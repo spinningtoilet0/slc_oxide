@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::{
     v2::{
         self,
-        input::{Input, InputData, PlayerInput},
+        input::{Input, InputData},
     },
     v3,
 };
@@ -47,51 +47,8 @@ impl Replay {
 
     pub fn to_generic_replay(self) -> GenericReplay {
         match self {
-            Replay::V2(v2_replay) => GenericReplay {
-                tps: v2_replay.tps,
-                inputs: v2_replay.inputs,
-            },
-            Replay::V3(v3_replay) => {
-                let mut replay = GenericReplay {
-                    tps: v3_replay.metadata.tps,
-                    inputs: Vec::new(),
-                };
-
-                use v3::action::ActionType;
-                use v3::atom::AtomVariant;
-
-                for atom in &v3_replay.atoms.atoms {
-                    if let AtomVariant::Action(action_atom) = atom {
-                        for action in &action_atom.actions {
-                            let data = match action.action_type {
-                                ActionType::Jump | ActionType::Left | ActionType::Right => {
-                                    let button = match action.action_type {
-                                        ActionType::Jump => 1,
-                                        ActionType::Left => 2,
-                                        ActionType::Right => 3,
-                                        _ => 1,
-                                    };
-                                    InputData::Player(PlayerInput {
-                                        hold: action.holding,
-                                        player_2: action.player2,
-                                        button,
-                                    })
-                                }
-                                ActionType::Restart => InputData::Restart,
-                                ActionType::RestartFull => InputData::RestartFull,
-                                ActionType::Death => InputData::Death,
-                                ActionType::TPS => InputData::TPS(action.tps),
-                                ActionType::Bugpoint => InputData::Skip,
-                                ActionType::Reserved => InputData::Skip,
-                            };
-
-                            replay.add_input(action.frame, data);
-                        }
-                    }
-                }
-
-                replay
-            }
+            Replay::V2(v2_replay) => v2_replay.to_generic_replay(),
+            Replay::V3(v3_replay) => v3_replay.to_generic_replay(),
         }
     }
 }

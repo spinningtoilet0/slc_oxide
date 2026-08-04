@@ -5,7 +5,10 @@ use std::{
 
 use thiserror::Error;
 
-use crate::v2::{blob::Blob, input::Input};
+use crate::{
+    replay::GenericReplay,
+    v2::{blob::Blob, input::Input},
+};
 
 pub struct Replay {
     pub tps: f64,
@@ -90,7 +93,7 @@ impl Replay {
 
         writer.write_all(&tps.to_le_bytes())?;
         writer.write_all(&(meta.len() as u64).to_le_bytes())?;
-        writer.write_all(&meta)?;
+        writer.write_all(meta)?;
         writer.write_all(&(inputs.len() as u64).to_le_bytes())?;
 
         let mut blobs: Vec<Blob> = Vec::new();
@@ -173,5 +176,12 @@ impl Replay {
         writer.write_all(&Self::FOOTER)?;
 
         Ok(())
+    }
+
+    pub fn to_generic_replay(self) -> GenericReplay {
+        GenericReplay {
+            tps: self.tps,
+            inputs: self.inputs,
+        }
     }
 }
