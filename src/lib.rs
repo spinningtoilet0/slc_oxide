@@ -3,8 +3,10 @@
 //! Provides a compact and fast replay format to use
 //! for bots and converters. Silicate's official format.
 
+pub mod action;
 pub mod replay;
 pub mod v2;
 pub mod v3;
 
-pub use replay::Replay;
+pub use action::{Action, ActionData};
+pub use replay::{GenericReplay, Replay, ReplayError};

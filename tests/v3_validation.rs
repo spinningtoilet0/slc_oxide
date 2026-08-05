@@ -1,11 +1,10 @@
-use slc_oxide::Replay;
 use slc_oxide::replay::GenericReplay;
-use slc_oxide::v2::input::{InputData, PlayerInput};
 use slc_oxide::v3::atom::{AtomError, AtomVariant, OpaqueAtom};
 use slc_oxide::v3::builtin::ActionAtom;
 use slc_oxide::v3::replay::ReplayError as V3ReplayError;
 use slc_oxide::v3::section::SectionError;
 use slc_oxide::v3::{Action, ActionType, Metadata, Replay as V3Replay};
+use slc_oxide::{Replay, ReplayError};
 use std::io::Cursor;
 
 const ATOMS_OFFSET: usize = 8 + 2 + 64;
@@ -285,34 +284,18 @@ fn generic_v3_conversion_honors_meta_contract_and_reports_errors() {
 
     assert_eq!(decoded.meta, &[67, 69, 41]);
 
-    let mut invalid_button = GenericReplay {
-        tps: 240.0,
-        inputs: Vec::new(),
-    };
-
-    invalid_button.add_input(
-        1,
-        InputData::Player(PlayerInput {
-            hold: true,
-            player_2: false,
-            button: 9,
-        }),
-    );
-
-    use slc_oxide::replay::ReplayError;
-
-    assert!(matches!(
-        invalid_button.write_v3(&mut Vec::new(), 0, 0),
-        Err(ReplayError::V3Error(V3ReplayError::InvalidPlayerButton(9)))
-    ));
-
     let mut invalid_tps = GenericReplay {
         tps: 240.0,
-        inputs: Vec::new(),
+        actions: Vec::new(),
     };
-    invalid_tps.add_input(1, InputData::TPS(-1.0));
+
+    invalid_tps.add_action(slc_oxide::Action {
+        frame: 1,
+        data: slc_oxide::ActionData::TPS(-1.0),
+    });
+
     assert!(matches!(
-        invalid_tps.write_v3(&mut Vec::new(), 0, 0),
+        invalid_tps.write_v3(&mut Vec::new(), Metadata::new(240.0, 0, 0)),
         Err(ReplayError::V3Error(V3ReplayError::AtomError(
             AtomError::InvalidTPS(_)
         )))

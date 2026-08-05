@@ -8,9 +8,10 @@ use thiserror::Error;
 /// A player input.
 ///
 /// This input assumes the following buttons:
-/// 1 - Jump
-/// 2 - Left
-/// 3 - Right
+///
+/// 1. Jump
+/// 2. Left
+/// 3. Right
 ///
 /// Buttons match the in-game buttons directly provided in `GJBaseGameLayer::handleButton`.
 /// You may safely use them without any further processing.
@@ -20,10 +21,6 @@ pub struct PlayerInput {
     pub player_2: bool,
     pub button: u8,
 }
-
-/// Backwards compatibility alias for PlayerInput.
-#[deprecated(since = "0.2.0", note = "Use `PlayerInput` instead")]
-pub type PlayerData = PlayerInput;
 
 /// Data specifying an input's action.
 #[derive(Debug, Clone, PartialEq)]

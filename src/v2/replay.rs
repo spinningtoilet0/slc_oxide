@@ -6,8 +6,9 @@ use std::{
 use thiserror::Error;
 
 use crate::{
+    action::Player,
     replay::GenericReplay,
-    v2::{blob::Blob, input::Input},
+    v2::{InputData, blob::Blob, input::Input},
 };
 
 pub struct Replay {
@@ -178,10 +179,41 @@ impl Replay {
         Ok(())
     }
 
-    pub fn to_generic_replay(self) -> GenericReplay {
+    pub fn to_generic_replay(&self) -> GenericReplay {
+        let mut actions = Vec::with_capacity(self.inputs.len());
+
+        for input in &self.inputs {
+            actions.push(crate::Action {
+                frame: input.frame,
+                data: match &input.data {
+                    InputData::Skip => continue,
+                    InputData::Restart => crate::ActionData::Restart,
+                    InputData::RestartFull => crate::ActionData::RestartFull,
+                    InputData::Death => crate::ActionData::Death,
+                    InputData::TPS(tps) => crate::ActionData::TPS(*tps),
+                    InputData::Player(player_input) => {
+                        crate::ActionData::Player(crate::action::PlayerInput {
+                            action: match player_input.button {
+                                1 => crate::action::PlayerAction::Jump,
+                                2 => crate::action::PlayerAction::Left,
+                                3 => crate::action::PlayerAction::Right,
+                                _ => continue, // TODO: maybe report errors on this
+                            },
+                            down: player_input.hold,
+                            player: if player_input.player_2 {
+                                Player::Player2
+                            } else {
+                                Player::Player1
+                            },
+                        })
+                    }
+                },
+            });
+        }
+
         GenericReplay {
             tps: self.tps,
-            inputs: self.inputs,
+            actions,
         }
     }
 }

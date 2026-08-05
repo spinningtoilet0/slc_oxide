@@ -1,6 +1,7 @@
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
 
+use crate::action::{ActionData, Player, PlayerAction, PlayerInput};
 use crate::replay::GenericReplay;
 use crate::v3::ActionType;
 
@@ -114,40 +115,44 @@ impl Replay {
         Ok(())
     }
 
-    pub fn to_generic_replay(self) -> GenericReplay {
+    pub fn to_generic_replay(&self) -> GenericReplay {
         let mut replay = GenericReplay {
             tps: self.metadata.tps,
-            inputs: Vec::new(),
+            actions: Vec::new(),
         };
-
-        use crate::v2::input::{InputData, PlayerInput};
 
         for atom in &self.atoms.atoms {
             if let AtomVariant::Action(action_atom) = atom {
                 for action in &action_atom.actions {
                     let data = match action.action_type {
                         ActionType::Jump | ActionType::Left | ActionType::Right => {
-                            let button = match action.action_type {
-                                ActionType::Jump => 1,
-                                ActionType::Left => 2,
-                                ActionType::Right => 3,
-                                _ => 1,
-                            };
-                            InputData::Player(PlayerInput {
-                                hold: action.holding,
-                                player_2: action.player2,
-                                button,
+                            ActionData::Player(PlayerInput {
+                                down: action.holding,
+                                player: if action.player2 {
+                                    Player::Player2
+                                } else {
+                                    Player::Player1
+                                },
+                                action: match action.action_type {
+                                    ActionType::Jump => PlayerAction::Jump,
+                                    ActionType::Left => PlayerAction::Left,
+                                    ActionType::Right => PlayerAction::Right,
+                                    _ => unreachable!(),
+                                },
                             })
                         }
-                        ActionType::Restart => InputData::Restart,
-                        ActionType::RestartFull => InputData::RestartFull,
-                        ActionType::Death => InputData::Death,
-                        ActionType::TPS => InputData::TPS(action.tps),
-                        ActionType::Bugpoint => InputData::Skip,
-                        ActionType::Reserved => InputData::Skip,
+                        ActionType::Restart => ActionData::Restart,
+                        ActionType::RestartFull => ActionData::RestartFull,
+                        ActionType::Death => ActionData::Death,
+                        ActionType::TPS => ActionData::TPS(action.tps),
+                        ActionType::Bugpoint => ActionData::Bugpoint,
+                        ActionType::Reserved => continue,
                     };
 
-                    replay.add_input(action.frame, data);
+                    replay.add_action(crate::Action {
+                        frame: action.frame,
+                        data,
+                    });
                 }
             }
         }

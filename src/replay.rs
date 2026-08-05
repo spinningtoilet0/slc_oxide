@@ -3,11 +3,8 @@ use std::io::{Read, Seek, Write};
 use thiserror::Error;
 
 use crate::{
-    v2::{
-        self,
-        input::{Input, InputData},
-    },
-    v3,
+    action::{Action, ActionData, Player, PlayerAction},
+    v2, v3,
 };
 
 #[derive(Debug, Error)]
@@ -45,7 +42,7 @@ impl Replay {
         }
     }
 
-    pub fn to_generic_replay(self) -> GenericReplay {
+    pub fn to_generic_replay(&self) -> GenericReplay {
         match self {
             Replay::V2(v2_replay) => v2_replay.to_generic_replay(),
             Replay::V3(v3_replay) => v3_replay.to_generic_replay(),
@@ -53,81 +50,93 @@ impl Replay {
     }
 }
 
-// TODO: migrate from v2::input::Input to a common type
-
 pub struct GenericReplay {
     pub tps: f64,
-    pub inputs: Vec<Input>,
+    pub actions: Vec<Action>,
 }
 
 impl GenericReplay {
-    /// Add a new input with the specified data to the replay.
-    pub fn add_input(&mut self, frame: u64, data: InputData) {
-        if self.inputs.is_empty() {
-            self.inputs.push(Input {
-                frame,
-                delta: frame,
-                data,
-            });
-
-            return;
-        }
-
-        let last_input = self.inputs.last().expect("Input should exist");
-
-        self.inputs.push(Input {
-            frame,
-            delta: frame - last_input.frame,
-            data,
-        })
+    /// Add a new action with the specified data to the replay.
+    pub fn add_action(&mut self, action: Action) {
+        self.actions.push(action);
     }
 
     pub fn write_v2<W: Write>(&self, writer: &mut W, metadata: &[u8]) -> Result<(), ReplayError> {
-        v2::replay::Replay::write_inner(writer, self.tps, metadata, &self.inputs)?;
+        let mut v2_inputs = Vec::with_capacity(self.actions.len());
+
+        let mut last_frame = 0;
+
+        for input in &self.actions {
+            v2_inputs.push(v2::Input {
+                frame: input.frame,
+                delta: last_frame - input.frame,
+                data: match &input.data {
+                    ActionData::Player(player_action) => v2::InputData::Player(v2::PlayerInput {
+                        hold: player_action.down,
+                        player_2: player_action.player == Player::Player2,
+                        button: player_action.action.to_v2_button(),
+                    }),
+                    ActionData::TPS(tps) => v2::InputData::TPS(*tps),
+                    ActionData::Restart => v2::InputData::Restart,
+                    ActionData::RestartFull => v2::InputData::RestartFull,
+                    ActionData::Death => v2::InputData::Death,
+                    ActionData::Bugpoint => todo!(),
+                },
+            });
+
+            last_frame = input.frame;
+        }
+
+        v2::Replay::write_inner(writer, self.tps, metadata, &v2_inputs)?;
 
         Ok(())
     }
 
+    /// Write a v3 format replay
+    ///
+    /// This function expects that the elements in the `actions` Vec are sorted by frame.
+    /// See [GenericReplay::reorder_inputs].
     pub fn write_v3<W: Write>(
         &self,
         writer: &mut W,
-        seed: u64,
-        build: u32,
+        metadata: v3::Metadata,
     ) -> Result<(), ReplayError> {
+        use crate::v3::ActionType;
         use crate::v3::atom::AtomVariant;
         use crate::v3::builtin::ActionAtom;
-        use crate::v3::{ActionType, Metadata};
 
-        let metadata = Metadata::new(self.tps, seed, build);
         let mut v3_replay = crate::v3::Replay::new(metadata);
 
         let mut action_atom = ActionAtom::new();
 
-        for input in &self.inputs {
+        for input in &self.actions {
             match &input.data {
-                InputData::Player(p) => {
-                    let action_type = match p.button {
-                        1 => ActionType::Jump,
-                        2 => ActionType::Left,
-                        3 => ActionType::Right,
-                        _ => {
-                            return Err(ReplayError::V3Error(
-                                v3::replay::ReplayError::InvalidPlayerButton(p.button),
-                            ));
-                        }
+                ActionData::Player(p) => {
+                    let action_type = match p.action {
+                        PlayerAction::Jump => ActionType::Jump,
+                        PlayerAction::Left => ActionType::Left,
+                        PlayerAction::Right => ActionType::Right,
                     };
 
-                    action_atom.add_player_action(input.frame, action_type, p.hold, p.player_2)
+                    action_atom.add_player_action(
+                        input.frame,
+                        action_type,
+                        p.down,
+                        p.player == Player::Player2,
+                    )
                 }
-                InputData::Restart => {
+                ActionData::Restart => {
                     action_atom.add_death_action(input.frame, ActionType::Restart, 0)
                 }
-                InputData::RestartFull => {
+                ActionData::RestartFull => {
                     action_atom.add_death_action(input.frame, ActionType::RestartFull, 0)
                 }
-                InputData::Death => action_atom.add_death_action(input.frame, ActionType::Death, 0),
-                InputData::TPS(tps) => action_atom.add_tps_action(input.frame, *tps),
-                InputData::Skip => Ok(()),
+                ActionData::Death => {
+                    action_atom.add_death_action(input.frame, ActionType::Death, 0)
+                }
+
+                ActionData::TPS(tps) => action_atom.add_tps_action(input.frame, *tps),
+                ActionData::Bugpoint => action_atom.add_bugpoint_action(input.frame),
             }
             .map_err(v3::replay::ReplayError::from)?;
         }
@@ -136,5 +145,10 @@ impl GenericReplay {
         v3_replay.write(writer)?;
 
         Ok(())
+    }
+
+    /// Orders elements in the `inputs` array by frame, from least to greatest
+    pub fn order_inputs(&mut self) {
+        self.actions.sort_by_key(|a| a.frame);
     }
 }
