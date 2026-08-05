@@ -1,12 +1,17 @@
+pub mod action;
+pub mod opaque;
+
+pub use action::{Action, ActionAtom, ActionType};
+pub use opaque::OpaqueAtom;
+
 use std::io::{Cursor, Read, Seek, Write};
 use thiserror::Error;
 
-#[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AtomId {
-    Null = 0,
-    Action = 1,
-    Marker = 2,
+    Null,
+    Action,
+    Marker,
 }
 
 impl TryFrom<u32> for AtomId {
@@ -37,7 +42,7 @@ pub enum AtomError {
     #[error("Action atom is too small to contain its action count")]
     ActionAtomTooSmall,
     #[error("Invalid action type for this operation: {0:?}")]
-    InvalidActionType(crate::v3::action::ActionType),
+    InvalidActionType(ActionType),
     #[error("Invalid TPS value: {0}")]
     InvalidTPS(f64),
     #[error("Action frame {frame} precedes the previous frame {previous}")]
@@ -57,23 +62,10 @@ pub trait Atom: Sized {
     fn write<W: Write>(&self, writer: &mut W) -> Result<(), AtomError>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpaqueAtom {
-    pub id: u32,
-    pub flags: u8,
-    pub body: Vec<u8>,
-}
-
-impl OpaqueAtom {
-    pub fn new(id: u32, flags: u8, body: Vec<u8>) -> Self {
-        Self { id, flags, body }
-    }
-}
-
 #[derive(Debug)]
 pub enum AtomVariant {
     Opaque(OpaqueAtom),
-    Action(super::builtin::ActionAtom),
+    Action(ActionAtom),
 }
 
 impl AtomVariant {
@@ -113,7 +105,7 @@ impl AtomVariant {
         match id {
             id if id == AtomId::Action as u32 => {
                 let mut body_reader = Cursor::new(body);
-                Ok(AtomVariant::Action(super::builtin::ActionAtom::read(
+                Ok(AtomVariant::Action(ActionAtom::read(
                     &mut body_reader,
                     size,
                 )?))

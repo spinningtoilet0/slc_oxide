@@ -8,13 +8,16 @@ use crate::{
 };
 
 #[derive(Debug, Error)]
-pub enum ReplayError {
+pub enum ReplayError<'a> {
     #[error("Unknown format")]
     UnknownFormat,
     #[error("V2 error: {0}")]
     V2Error(#[from] v2::replay::ReplayError),
     #[error("V3 error: {0}")]
     V3Error(#[from] v3::replay::ReplayError),
+    /// The specified action is unrepresentable in the desired format.
+    #[error("Unrepresentable action: {0}")]
+    UnrepresentableAction(&'a Action),
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
 }
@@ -28,7 +31,7 @@ impl Replay {
     /// Read the replay from a stream.
     ///
     /// This function expects that the start of the stream is the start of the SLC file, and that the end has no extra bytes.
-    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError> {
+    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError<'_>> {
         let mut header_buf = [0u8; 8];
         reader.read_exact(&mut header_buf)?;
         reader.seek(std::io::SeekFrom::Start(0))?;
@@ -61,16 +64,20 @@ impl GenericReplay {
         self.actions.push(action);
     }
 
-    pub fn write_v2<W: Write>(&self, writer: &mut W, metadata: &[u8]) -> Result<(), ReplayError> {
+    pub fn write_v2<W: Write>(
+        &self,
+        writer: &mut W,
+        metadata: &[u8],
+    ) -> Result<(), ReplayError<'_>> {
         let mut v2_inputs = Vec::with_capacity(self.actions.len());
 
         let mut last_frame = 0;
 
-        for input in &self.actions {
+        for action in &self.actions {
             v2_inputs.push(v2::Input {
-                frame: input.frame,
-                delta: last_frame - input.frame,
-                data: match &input.data {
+                frame: action.frame,
+                delta: last_frame - action.frame,
+                data: match &action.data {
                     ActionData::Player(player_action) => v2::InputData::Player(v2::PlayerInput {
                         hold: player_action.down,
                         player_2: player_action.player == Player::Player2,
@@ -80,11 +87,13 @@ impl GenericReplay {
                     ActionData::Restart => v2::InputData::Restart,
                     ActionData::RestartFull => v2::InputData::RestartFull,
                     ActionData::Death => v2::InputData::Death,
-                    ActionData::Bugpoint => todo!(),
+                    ActionData::Bugpoint => {
+                        return Err(ReplayError::UnrepresentableAction(action));
+                    }
                 },
             });
 
-            last_frame = input.frame;
+            last_frame = action.frame;
         }
 
         v2::Replay::write_inner(writer, self.tps, metadata, &v2_inputs)?;
@@ -100,10 +109,10 @@ impl GenericReplay {
         &self,
         writer: &mut W,
         metadata: v3::Metadata,
-    ) -> Result<(), ReplayError> {
+    ) -> Result<(), ReplayError<'_>> {
         use crate::v3::ActionType;
+        use crate::v3::atom::ActionAtom;
         use crate::v3::atom::AtomVariant;
-        use crate::v3::builtin::ActionAtom;
 
         let mut v3_replay = crate::v3::Replay::new(metadata);
 

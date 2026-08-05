@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use thiserror::Error;
 
-use super::action::{Action, ActionType};
+use crate::v3::{Action, ActionType};
 
 pub(crate) fn exponent_of_two(n: u32) -> u16 {
     if n == 0 {
@@ -34,31 +34,28 @@ pub enum SectionError {
     InvalidTPS(f64),
 }
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionIdentifier {
-    Input = 0,
-    Repeat = 1,
-    Special = 2,
+    Input,
+    Repeat,
+    Special,
 }
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialType {
-    Restart = 0,
-    RestartFull = 1,
-    Death = 2,
-    TPS = 3,
-    Bugpoint = 4,
+    Restart,
+    RestartFull,
+    Death,
+    TPS,
+    Bugpoint,
 }
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Button {
-    Swift = 0,
-    Jump = 1,
-    Left = 2,
-    Right = 3,
+    Swift,
+    Jump,
+    Left,
+    Right,
 }
 
 #[derive(Debug, Clone)]
