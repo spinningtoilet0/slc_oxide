@@ -73,8 +73,6 @@ impl Display for Input {
     }
 }
 
-// IO
-
 #[derive(Debug, Error)]
 pub enum InputError {
     #[error("IO error: {0}")]

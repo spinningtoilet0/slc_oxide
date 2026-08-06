@@ -9,9 +9,9 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AtomId {
-    Null,
-    Action,
-    Marker,
+    Null = 0,
+    Action = 1,
+    Marker = 2,
 }
 
 impl TryFrom<u32> for AtomId {
