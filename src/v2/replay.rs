@@ -8,9 +8,10 @@ use thiserror::Error;
 use crate::{
     action::Player,
     replay::GenericReplay,
-    v2::{InputData, blob::Blob, input::Input},
+    v2::{self, InputData, InputError, blob::Blob, input::Input},
 };
 
+/// An SLC v2 replay.
 pub struct Replay {
     pub tps: f64,
     pub meta: Vec<u8>,
@@ -23,16 +24,19 @@ pub enum ReplayError {
     HeaderMismatchError,
     #[error("Footer mismatch error")]
     FooterMismatchError,
-    #[error("Blob error: {0}")]
-    Blob(#[from] crate::v2::blob::BlobError),
+    #[error("Input error: {0}")]
+    InputError(#[from] v2::InputError),
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
 }
 
 impl Replay {
+    /// The first 4 bytes in any SLC v2 replay.
     pub const HEADER: [u8; 4] = *b"SILL";
+    /// The last 3 bytes in any SLC v2 replay.
     pub const FOOTER: [u8; 3] = *b"EOM";
 
+    /// Reads a SLC v2 replay from a stream.
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, ReplayError> {
         let mut header_buf = [0u8; 4];
         reader.read_exact(&mut header_buf)?;
@@ -44,6 +48,10 @@ impl Replay {
         let mut big_buf = [0u8; 8];
         reader.read_exact(&mut big_buf)?;
         let tps = f64::from_le_bytes(big_buf);
+
+        if tps <= 0.0 || !tps.is_normal() {
+            return Err(ReplayError::InputError(InputError::InvalidTPS(tps)));
+        }
 
         reader.read_exact(&mut big_buf)?;
         let meta_size = u64::from_le_bytes(big_buf);
@@ -77,19 +85,23 @@ impl Replay {
         Ok(Self { tps, meta, inputs })
     }
 
+    /// Write the SLC v2 replay.
     pub fn write<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
         Self::write_inner(writer, self.tps, &self.meta, &self.inputs)?;
 
         Ok(())
     }
 
-    // theres probably
     pub(crate) fn write_inner<W: Write>(
         writer: &mut W,
         tps: f64,
         meta: &[u8],
         inputs: &[Input],
     ) -> Result<(), ReplayError> {
+        if tps <= 0.0 || !tps.is_normal() {
+            return Err(ReplayError::InputError(InputError::InvalidTPS(tps)));
+        }
+
         writer.write_all(&Self::HEADER)?;
 
         writer.write_all(&tps.to_le_bytes())?;
@@ -102,12 +114,14 @@ impl Replay {
         // First blob pass
         inputs.iter().enumerate().for_each(|(i, input)| {
             let byte_size = input.required_bytes();
+
             if blobs.is_empty() {
                 blobs.push(Blob {
                     byte_size: byte_size as u64,
                     start: i as u64,
                     length: 1,
                 });
+
                 return;
             }
 
@@ -179,7 +193,9 @@ impl Replay {
         Ok(())
     }
 
-    pub fn to_generic_replay(&self) -> GenericReplay {
+    /// Convert the SLC v2 replay to a [GenericReplay] for easy modification
+    /// and conversion to SLC v3.
+    pub fn to_generic_replay(&self) -> Result<GenericReplay, ReplayError> {
         let mut actions = Vec::with_capacity(self.inputs.len());
 
         for input in &self.inputs {
@@ -197,7 +213,11 @@ impl Replay {
                                 1 => crate::action::PlayerAction::Jump,
                                 2 => crate::action::PlayerAction::Left,
                                 3 => crate::action::PlayerAction::Right,
-                                _ => continue, // TODO: maybe report errors on this
+                                x => {
+                                    return Err(ReplayError::InputError(
+                                        InputError::InvalidButton(x),
+                                    ));
+                                }
                             },
                             down: player_input.hold,
                             player: if player_input.player_2 {
@@ -211,9 +231,9 @@ impl Replay {
             });
         }
 
-        GenericReplay {
+        Ok(GenericReplay {
             tps: self.tps,
             actions,
-        }
+        })
     }
 }

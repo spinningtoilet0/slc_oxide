@@ -9,13 +9,13 @@ use thiserror::Error;
 ///
 /// This input assumes the following buttons:
 ///
-/// 1. Jump
-/// 2. Left
-/// 3. Right
+/// - Jump = 1
+/// - Left = 2
+/// - Right = 3
 ///
 /// Buttons match the in-game buttons directly provided in `GJBaseGameLayer::handleButton`.
 /// You may safely use them without any further processing.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerInput {
     pub hold: bool,
     pub player_2: bool,
@@ -59,7 +59,7 @@ impl Display for InputData {
 /// A replay input.
 ///
 /// Replay inputs are identified by the frame they're on. Do note
-/// that different bots count frames differently (e.g. using GJGameState's `m_currentProgress`).
+/// that different bots count frames differently (e.g. using `GJGameState`'s `m_currentProgress`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Input {
     pub delta: u64,
@@ -75,12 +75,12 @@ impl Display for Input {
 
 #[derive(Debug, Error)]
 pub enum InputError {
+    #[error("Invalid TPS provided")]
+    InvalidTPS(f64),
+    #[error("Invalid button type")]
+    InvalidButton(u8),
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
-    #[error("Invalid TPS provided")]
-    InvalidTPS,
-    #[error("Invalid button type")]
-    InvalidButton,
 }
 
 impl Input {
@@ -93,7 +93,9 @@ impl Input {
         reader.read_exact(&mut buf)?;
         buf.resize(8, 0);
 
-        let state = u64::from_le_bytes(*unsafe { &*buf.as_ptr().cast::<[u8; 8]>() });
+        let mut buf = buf.try_into().unwrap();
+
+        let state = u64::from_le_bytes(buf);
 
         let delta = state >> 5;
         let frame = current_frame + delta;
@@ -111,11 +113,11 @@ impl Input {
             6 => InputData::Death,
             7 => {
                 reader.read_exact(&mut buf)?;
-                let tps = f64::from_le_bytes(*unsafe { &*buf.as_ptr().cast::<[u8; 8]>() });
+                let tps = f64::from_le_bytes(buf);
 
                 InputData::TPS(tps)
             }
-            _ => return Err(InputError::InvalidButton),
+            x => return Err(InputError::InvalidButton(x as u8)),
         };
 
         Ok(Input { delta, frame, data })
@@ -154,6 +156,7 @@ impl Input {
 
     pub(crate) fn write<W: Write>(&self, writer: &mut W, byte_size: u64) -> Result<(), InputError> {
         writer.write_all(&self.to_state().to_le_bytes()[0..byte_size as usize])?;
+
         if let InputData::TPS(tps) = self.data {
             writer.write_all(&tps.to_le_bytes())?;
         }

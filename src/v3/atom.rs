@@ -7,6 +7,8 @@ pub use opaque::OpaqueAtom;
 use std::io::{Cursor, Read, Seek, Write};
 use thiserror::Error;
 
+use crate::v3;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AtomId {
     Null = 0,
@@ -29,8 +31,6 @@ impl TryFrom<u32> for AtomId {
 
 #[derive(Debug, Error)]
 pub enum AtomError {
-    #[error("IO error: {0}")]
-    IOError(#[from] std::io::Error),
     #[error("Unknown atom ID: {0}")]
     UnknownAtomId(u32),
     #[error("Atom body is too large")]
@@ -52,7 +52,9 @@ pub enum AtomError {
     #[error("Action frame delta is inconsistent: expected {expected}, found {actual}")]
     InconsistentFrameDelta { expected: u64, actual: u64 },
     #[error("Section error: {0}")]
-    SectionError(#[from] crate::v3::section::SectionError),
+    SectionError(#[from] v3::section::SectionError),
+    #[error("IO error: {0}")]
+    IOError(#[from] std::io::Error),
 }
 
 pub trait Atom: Sized {

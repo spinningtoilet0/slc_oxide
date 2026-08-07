@@ -3,34 +3,12 @@ use thiserror::Error;
 
 use crate::action::{ActionData, Player, PlayerAction, PlayerInput};
 use crate::replay::GenericReplay;
-use crate::v3::ActionType;
+use crate::v3::{self, ActionType};
 
 use super::atom::{AtomRegistry, AtomVariant};
 use super::metadata::{METADATA_SIZE, Metadata};
 
 /// An SLC3 format replay.
-///
-/// # Examples
-/// ```no_run
-/// use slc_oxide::v3::{Replay, Metadata, ActionType};
-/// use slc_oxide::v3::atom::AtomVariant;
-/// use slc_oxide::v3::builtin::ActionAtom;
-/// use std::fs::File;
-/// use std::io::BufWriter;
-///
-/// let metadata = Metadata::new(240.0, 12345, 1);
-/// let mut replay = Replay::new(metadata);
-///
-/// let mut action_atom = ActionAtom::new();
-/// action_atom.add_player_action(100, ActionType::Jump, true, false).unwrap();
-/// action_atom.add_player_action(102, ActionType::Jump, false, false).unwrap();
-///
-/// replay.add_atom(AtomVariant::Action(action_atom));
-///
-/// let file = File::create("replay.slc3").unwrap();
-/// let mut writer = BufWriter::new(file);
-/// replay.write(&mut writer).unwrap();
-/// ```
 pub struct Replay {
     pub metadata: Metadata,
     pub atoms: AtomRegistry,
@@ -47,7 +25,7 @@ pub enum ReplayError {
     #[error("Invalid player button: {0}")]
     InvalidPlayerButton(u8),
     #[error("Atom error: {0}")]
-    AtomError(#[from] super::atom::AtomError),
+    AtomError(#[from] v3::atom::AtomError),
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
 }

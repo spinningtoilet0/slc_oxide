@@ -3,7 +3,7 @@
 
 use std::fmt::Display;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Player {
     Player1,
     Player2,
@@ -18,7 +18,7 @@ impl Display for Player {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PlayerAction {
     Jump,
     Left,
@@ -36,6 +36,7 @@ impl Display for PlayerAction {
 }
 
 impl PlayerAction {
+    /// Convert a [PlayerAction] to [v2::PlayerInput](crate::v2::PlayerInput)'s `button` field.
     pub fn to_v2_button(&self) -> u8 {
         match self {
             PlayerAction::Jump => 1,
@@ -45,15 +46,19 @@ impl PlayerAction {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PlayerInput {
     pub action: PlayerAction,
+    /// Indicates whether the action is a "hold" or "release"
+    ///
+    /// `true` = "hold" \
+    /// `false` = "release"
     pub down: bool,
     pub player: Player,
 }
 
-/// Data specifying what the action does
-#[derive(Debug, Clone, PartialEq)]
+/// Data specifying what an action does.
+#[derive(Debug, PartialEq, Clone)]
 pub enum ActionData {
     /// This input is an in-game player button push.
     Player(PlayerInput),
@@ -65,7 +70,8 @@ pub enum ActionData {
     Death,
     /// This input changes the current tps of the replay.
     TPS(f64),
-    /// TODO
+    /// This input indicates a (now removed) bug which allowed you to
+    /// place a checkpoint in normal mode. It is kept for compatibility.
     Bugpoint,
 }
 
@@ -74,7 +80,7 @@ impl Display for ActionData {
         match self {
             Self::Player(p) => write!(
                 f,
-                "action: {}, down: {}, player: {}",
+                "player action: {}, down: {}, player: {}",
                 p.action, p.down, p.player
             ),
             Self::Death => write!(f, "death"),
@@ -94,6 +100,6 @@ pub struct Action {
 
 impl Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "frame: {}, input: [{}]", self.frame, self.data)
+        write!(f, "frame: {}, input: ({})", self.frame, self.data)
     }
 }

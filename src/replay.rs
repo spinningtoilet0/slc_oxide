@@ -9,6 +9,7 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum ReplayError<'a> {
+    /// The file header did not match a known replay format.
     #[error("Unknown format")]
     UnknownFormat,
     #[error("V2 error: {0}")]
@@ -45,11 +46,11 @@ impl Replay {
         }
     }
 
-    pub fn to_generic_replay(&self) -> GenericReplay {
-        match self {
-            Replay::V2(v2_replay) => v2_replay.to_generic_replay(),
+    pub fn to_generic_replay(&self) -> Result<GenericReplay, ReplayError<'_>> {
+        Ok(match self {
+            Replay::V2(v2_replay) => v2_replay.to_generic_replay()?,
             Replay::V3(v3_replay) => v3_replay.to_generic_replay(),
-        }
+        })
     }
 }
 
@@ -64,6 +65,10 @@ impl GenericReplay {
         self.actions.push(action);
     }
 
+    /// Writes the replay in the SLC v2 format.
+    ///
+    /// This function will error if an action in the `actions` Vec
+    /// is of type [ActionData::Bugpoint](crate::action::ActionData::Bugpoint)
     pub fn write_v2<W: Write>(
         &self,
         writer: &mut W,
@@ -159,5 +164,19 @@ impl GenericReplay {
     /// Orders elements in the `inputs` array by frame, from least to greatest
     pub fn order_inputs(&mut self) {
         self.actions.sort_by_key(|a| a.frame);
+    }
+}
+
+impl TryFrom<&v2::Replay> for GenericReplay {
+    type Error = v2::ReplayError;
+
+    fn try_from(value: &v2::Replay) -> Result<Self, v2::ReplayError> {
+        value.to_generic_replay()
+    }
+}
+
+impl From<&v3::Replay> for GenericReplay {
+    fn from(value: &v3::Replay) -> Self {
+        value.to_generic_replay()
     }
 }

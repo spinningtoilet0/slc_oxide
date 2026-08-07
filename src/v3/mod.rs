@@ -10,4 +10,4 @@ pub mod section;
 
 pub use atom::{Action, ActionType};
 pub use metadata::Metadata;
-pub use replay::Replay;
+pub use replay::{Replay, ReplayError};
