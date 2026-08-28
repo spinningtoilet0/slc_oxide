@@ -3,7 +3,9 @@
 
 use std::fmt::Display;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+use crate::v2;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Player {
     Player1,
     Player2,
@@ -18,7 +20,7 @@ impl Display for Player {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerAction {
     Jump,
     Left,
@@ -37,16 +39,16 @@ impl Display for PlayerAction {
 
 impl PlayerAction {
     /// Convert a [PlayerAction] to [v2::PlayerInput](crate::v2::PlayerInput)'s `button` field.
-    pub fn to_v2_button(&self) -> u8 {
+    pub fn to_v2_button(&self) -> v2::Button {
         match self {
-            PlayerAction::Jump => 1,
-            PlayerAction::Left => 2,
-            PlayerAction::Right => 3,
+            PlayerAction::Jump => v2::Button::Jump,
+            PlayerAction::Left => v2::Button::Left,
+            PlayerAction::Right => v2::Button::Right,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerInput {
     pub action: PlayerAction,
     /// Indicates whether the action is a "hold" or "release"
@@ -58,16 +60,16 @@ pub struct PlayerInput {
 }
 
 /// Data specifying what an action does.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ActionData {
     /// This input is an in-game player button push.
     Player(PlayerInput),
     /// This input restarts the level. (`PlayLayer::resetLevel`)
-    Restart,
+    Restart { seed: u64 },
     /// This input restarts the level, fully. (`PlayLayer::fullReset`)
-    RestartFull,
+    RestartFull { seed: u64 },
     /// This input signals that the player may die on any subsequent frame.
-    Death,
+    Death { seed: u64 },
     /// This input changes the current tps of the replay.
     TPS(f64),
     /// This input indicates a (now removed) bug which allowed you to
@@ -83,9 +85,9 @@ impl Display for ActionData {
                 "player action: {}, down: {}, player: {}",
                 p.action, p.down, p.player
             ),
-            Self::Death => write!(f, "death"),
-            Self::Restart => write!(f, "restart"),
-            Self::RestartFull => write!(f, "full restart"),
+            Self::Death { seed } => write!(f, "death (seed {})", seed),
+            Self::Restart { seed } => write!(f, "restart (seed {})", seed),
+            Self::RestartFull { seed } => write!(f, "full restart (seed {})", seed),
             Self::TPS(tps) => write!(f, "tps: {}", tps),
             Self::Bugpoint => write!(f, "bugpoint"),
         }

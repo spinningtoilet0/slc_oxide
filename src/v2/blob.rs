@@ -14,8 +14,10 @@ impl Blob {
 
         reader.read_exact(&mut buf)?;
         let byte_size = u64::from_le_bytes(buf);
+
         reader.read_exact(&mut buf)?;
         let start = u64::from_le_bytes(buf);
+
         reader.read_exact(&mut buf)?;
         let length = u64::from_le_bytes(buf);
 

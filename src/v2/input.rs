@@ -5,21 +5,44 @@ use std::{
 
 use thiserror::Error;
 
-/// A player input.
-///
-/// This input assumes the following buttons:
-///
-/// - Jump = 1
-/// - Left = 2
-/// - Right = 3
-///
 /// Buttons match the in-game buttons directly provided in `GJBaseGameLayer::handleButton`.
 /// You may safely use them without any further processing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Button {
+    Jump = 1,
+    Left = 2,
+    Right = 3,
+}
+
+impl Display for Button {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Jump => write!(f, "jump"),
+            Self::Left => write!(f, "left"),
+            Self::Right => write!(f, "right"),
+        }
+    }
+}
+
+impl TryFrom<u8> for Button {
+    type Error = InputError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Ok(match value {
+            1 => Self::Jump,
+            2 => Self::Left,
+            3 => Self::Right,
+            x => return Err(Self::Error::InvalidButton(x)),
+        })
+    }
+}
+
+/// A player input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerInput {
     pub hold: bool,
     pub player_2: bool,
-    pub button: u8,
+    pub button: Button,
 }
 
 /// Data specifying an input's action.
@@ -75,8 +98,6 @@ impl Display for Input {
 
 #[derive(Debug, Error)]
 pub enum InputError {
-    #[error("Invalid TPS provided")]
-    InvalidTPS(f64),
     #[error("Invalid button type")]
     InvalidButton(u8),
     #[error("IO error: {0}")]
@@ -106,7 +127,7 @@ impl Input {
             1..=3 => InputData::Player(PlayerInput {
                 hold: (state & 1) != 0,
                 player_2: (state & 2) != 0,
-                button: button as u8,
+                button: (button as u8).try_into().unwrap(), // this never fails (button is 1, 2, or 3)
             }),
             4 => InputData::Restart,
             5 => InputData::RestartFull,
@@ -117,7 +138,7 @@ impl Input {
 
                 InputData::TPS(tps)
             }
-            x => return Err(InputError::InvalidButton(x as u8)),
+            _ => unreachable!(),
         };
 
         Ok(Input { delta, frame, data })

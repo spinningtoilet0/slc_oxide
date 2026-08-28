@@ -13,9 +13,9 @@ pub enum ReplayError<'a> {
     #[error("Unknown format")]
     UnknownFormat,
     #[error("V2 error: {0}")]
-    V2Error(#[from] v2::replay::ReplayError),
+    V2Error(#[from] v2::ReplayError),
     #[error("V3 error: {0}")]
-    V3Error(#[from] v3::replay::ReplayError),
+    V3Error(#[from] v3::ReplayError),
     /// The specified action is unrepresentable in the desired format.
     #[error("Unrepresentable action: {0}")]
     UnrepresentableAction(&'a Action),
@@ -23,6 +23,7 @@ pub enum ReplayError<'a> {
     IOError(#[from] std::io::Error),
 }
 
+#[derive(Debug, Clone)]
 pub enum Replay {
     V2(v2::replay::Replay),
     V3(v3::replay::Replay),
@@ -46,14 +47,15 @@ impl Replay {
         }
     }
 
-    pub fn to_generic_replay(&self) -> Result<GenericReplay, ReplayError<'_>> {
-        Ok(match self {
-            Replay::V2(v2_replay) => v2_replay.to_generic_replay()?,
+    pub fn to_generic_replay(&self) -> GenericReplay {
+        match self {
+            Replay::V2(v2_replay) => v2_replay.to_generic_replay(),
             Replay::V3(v3_replay) => v3_replay.to_generic_replay(),
-        })
+        }
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenericReplay {
     pub tps: f64,
     pub actions: Vec<Action>,
@@ -89,9 +91,12 @@ impl GenericReplay {
                         button: player_action.action.to_v2_button(),
                     }),
                     ActionData::TPS(tps) => v2::InputData::TPS(*tps),
-                    ActionData::Restart => v2::InputData::Restart,
-                    ActionData::RestartFull => v2::InputData::RestartFull,
-                    ActionData::Death => v2::InputData::Death,
+                    // throws away seed information, meaning if you converted a v3 replay with multiple attempts on a randomized level, the v2 replay would break
+                    // this should probably be documented
+                    // TODO
+                    ActionData::Restart { .. } => v2::InputData::Restart,
+                    ActionData::RestartFull { .. } => v2::InputData::RestartFull,
+                    ActionData::Death { .. } => v2::InputData::Death,
                     ActionData::Bugpoint => {
                         return Err(ReplayError::UnrepresentableAction(action));
                     }
@@ -115,47 +120,53 @@ impl GenericReplay {
         writer: &mut W,
         metadata: v3::Metadata,
     ) -> Result<(), ReplayError<'_>> {
-        use crate::v3::ActionType;
-        use crate::v3::atom::ActionAtom;
-        use crate::v3::atom::AtomVariant;
+        let mut v3_actions = Vec::with_capacity(self.actions.len());
 
-        let mut v3_replay = crate::v3::Replay::new(metadata);
+        for action in &self.actions {
+            v3_actions.push(v3::atom::action::Action::new(
+                action.frame,
+                match &action.data {
+                    ActionData::Player(player_input) => {
+                        let holding = player_input.down;
+                        let player2 = player_input.player == Player::Player2;
 
-        let mut action_atom = ActionAtom::new();
-
-        for input in &self.actions {
-            match &input.data {
-                ActionData::Player(p) => {
-                    let action_type = match p.action {
-                        PlayerAction::Jump => ActionType::Jump,
-                        PlayerAction::Left => ActionType::Left,
-                        PlayerAction::Right => ActionType::Right,
-                    };
-
-                    action_atom.add_player_action(
-                        input.frame,
-                        action_type,
-                        p.down,
-                        p.player == Player::Player2,
-                    )
-                }
-                ActionData::Restart => {
-                    action_atom.add_death_action(input.frame, ActionType::Restart, 0)
-                }
-                ActionData::RestartFull => {
-                    action_atom.add_death_action(input.frame, ActionType::RestartFull, 0)
-                }
-                ActionData::Death => {
-                    action_atom.add_death_action(input.frame, ActionType::Death, 0)
-                }
-
-                ActionData::TPS(tps) => action_atom.add_tps_action(input.frame, *tps),
-                ActionData::Bugpoint => action_atom.add_bugpoint_action(input.frame),
-            }
-            .map_err(v3::replay::ReplayError::from)?;
+                        match player_input.action {
+                            PlayerAction::Jump => {
+                                v3::atom::action::ActionData::Jump { holding, player2 }
+                            }
+                            PlayerAction::Left => {
+                                v3::atom::action::ActionData::Left { holding, player2 }
+                            }
+                            PlayerAction::Right => {
+                                v3::atom::action::ActionData::Right { holding, player2 }
+                            }
+                        }
+                    }
+                    ActionData::Restart { seed } => {
+                        v3::atom::action::ActionData::Restart { seed: *seed }
+                    }
+                    ActionData::RestartFull { seed } => {
+                        v3::atom::action::ActionData::RestartFull { seed: *seed }
+                    }
+                    ActionData::Death { seed } => {
+                        v3::atom::action::ActionData::Death { seed: *seed }
+                    }
+                    ActionData::TPS(tps) => v3::atom::action::ActionData::TPS(*tps),
+                    ActionData::Bugpoint => v3::atom::action::ActionData::Bugpoint,
+                },
+            ));
         }
 
-        v3_replay.add_atom(AtomVariant::Action(action_atom));
+        let mut registry = v3::atom::AtomRegistry::default();
+
+        registry
+            .atoms
+            .push(v3::atom::Atom::Action(v3::atom::ActionAtom {
+                flags: 0,
+                actions: v3_actions,
+            }));
+
+        let mut v3_replay = v3::Replay { metadata, registry };
         v3_replay.write(writer)?;
 
         Ok(())
@@ -167,10 +178,14 @@ impl GenericReplay {
     }
 }
 
-impl TryFrom<&v2::Replay> for GenericReplay {
-    type Error = v2::ReplayError;
+impl<'a> From<&'a Replay> for GenericReplay {
+    fn from(value: &'a Replay) -> Self {
+        value.to_generic_replay()
+    }
+}
 
-    fn try_from(value: &v2::Replay) -> Result<Self, v2::ReplayError> {
+impl From<&v2::Replay> for GenericReplay {
+    fn from(value: &v2::Replay) -> Self {
         value.to_generic_replay()
     }
 }

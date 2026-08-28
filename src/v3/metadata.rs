@@ -1,8 +1,6 @@
 use std::io::{Read, Write};
 
-pub const METADATA_SIZE: usize = 64;
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Metadata {
     pub tps: f64,
     pub seed: u64,
@@ -12,6 +10,8 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    pub const SIZE: usize = 64;
+
     pub fn new(tps: f64, seed: u64, build: u32) -> Self {
         Self {
             tps,
@@ -24,6 +24,7 @@ impl Metadata {
 
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut buf = [0u8; 8];
+
         reader.read_exact(&mut buf)?;
         let tps = f64::from_le_bytes(buf);
 
@@ -40,7 +41,7 @@ impl Metadata {
         reader.read_exact(&mut buf4)?;
         let randomness_algorithm = u32::from_le_bytes(buf4);
 
-        reader.read_exact(&mut [0u8; 36])?; // pading
+        reader.read_exact(&mut [0u8; 36])?; // padding
 
         Ok(Self {
             tps,
@@ -58,6 +59,7 @@ impl Metadata {
         writer.write_all(&self.build.to_le_bytes())?;
         writer.write_all(&self.randomness_algorithm.to_le_bytes())?;
         writer.write_all(&[0u8; 36])?; // padding
+
         Ok(())
     }
 }

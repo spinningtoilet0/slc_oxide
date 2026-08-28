@@ -1,17 +1,19 @@
 use std::io::{Read, Seek, Write};
+
 use thiserror::Error;
 
-use crate::action::{ActionData, Player, PlayerAction, PlayerInput};
-use crate::replay::GenericReplay;
-use crate::v3::{self, ActionType};
+use crate::{
+    GenericReplay,
+    v3::{
+        atom::{self, AtomRegistry},
+        metadata::Metadata,
+    },
+};
 
-use super::atom::{AtomRegistry, AtomVariant};
-use super::metadata::{METADATA_SIZE, Metadata};
-
-/// An SLC3 format replay.
+#[derive(Debug, Clone)]
 pub struct Replay {
     pub metadata: Metadata,
-    pub atoms: AtomRegistry,
+    pub registry: AtomRegistry,
 }
 
 #[derive(Debug, Error)]
@@ -22,10 +24,8 @@ pub enum ReplayError {
     InvalidMetadataSize,
     #[error("Invalid footer")]
     InvalidFooter,
-    #[error("Invalid player button: {0}")]
-    InvalidPlayerButton(u8),
     #[error("Atom error: {0}")]
-    AtomError(#[from] v3::atom::AtomError),
+    AtomError(#[from] atom::AtomError),
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
 }
@@ -34,39 +34,25 @@ impl Replay {
     pub const HEADER: [u8; 8] = *b"SLC3RPLY";
     pub const FOOTER: u8 = 0xCC;
 
-    pub fn new(metadata: Metadata) -> Self {
-        Self {
-            metadata,
-            atoms: AtomRegistry::new(),
-        }
-    }
-
     pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, ReplayError> {
         let mut header_buf = [0u8; 8];
+
         reader.read_exact(&mut header_buf)?;
 
         if header_buf != Self::HEADER {
             return Err(ReplayError::InvalidHeader);
         }
 
-        let mut buf2 = [0u8; 2];
-        reader.read_exact(&mut buf2)?;
-        let meta_size = u16::from_le_bytes(buf2);
+        let mut meta_size_buf = [0u8; 2];
+        reader.read_exact(&mut meta_size_buf)?;
+        let meta_size = u16::from_le_bytes(meta_size_buf);
 
-        if meta_size != METADATA_SIZE as u16 {
+        if meta_size != Metadata::SIZE as u16 {
             return Err(ReplayError::InvalidMetadataSize);
         }
 
         let metadata = Metadata::read(reader)?;
-
-        let mut atoms = AtomRegistry::new();
-
-        let current_pos = reader.stream_position()?;
-        reader.seek(std::io::SeekFrom::End(-1))?;
-        let end_pos = reader.stream_position()?;
-        reader.seek(std::io::SeekFrom::Start(current_pos))?;
-
-        atoms.read_all(reader, end_pos)?;
+        let atoms = AtomRegistry::read(reader)?;
 
         let mut footer_buf = [0u8; 1];
         reader.read_exact(&mut footer_buf)?;
@@ -75,18 +61,19 @@ impl Replay {
             return Err(ReplayError::InvalidFooter);
         }
 
-        Ok(Self { metadata, atoms })
+        Ok(Self {
+            metadata,
+            registry: atoms,
+        })
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> Result<(), ReplayError> {
+    pub fn write<W: Write>(&mut self, writer: &mut W) -> Result<(), ReplayError> {
         writer.write_all(&Self::HEADER)?;
 
-        let meta_size = METADATA_SIZE as u16;
-        writer.write_all(&meta_size.to_le_bytes())?;
-
+        writer.write_all(&(Metadata::SIZE as u16).to_le_bytes())?;
         self.metadata.write(writer)?;
 
-        self.atoms.write_all(writer)?;
+        self.registry.write(writer)?;
 
         writer.write_all(&[Self::FOOTER])?;
 
@@ -94,51 +81,6 @@ impl Replay {
     }
 
     pub fn to_generic_replay(&self) -> GenericReplay {
-        let mut replay = GenericReplay {
-            tps: self.metadata.tps,
-            actions: Vec::new(),
-        };
-
-        for atom in &self.atoms.atoms {
-            if let AtomVariant::Action(action_atom) = atom {
-                for action in &action_atom.actions {
-                    let data = match action.action_type {
-                        ActionType::Jump | ActionType::Left | ActionType::Right => {
-                            ActionData::Player(PlayerInput {
-                                down: action.holding,
-                                player: if action.player2 {
-                                    Player::Player2
-                                } else {
-                                    Player::Player1
-                                },
-                                action: match action.action_type {
-                                    ActionType::Jump => PlayerAction::Jump,
-                                    ActionType::Left => PlayerAction::Left,
-                                    ActionType::Right => PlayerAction::Right,
-                                    _ => unreachable!(),
-                                },
-                            })
-                        }
-                        ActionType::Restart => ActionData::Restart,
-                        ActionType::RestartFull => ActionData::RestartFull,
-                        ActionType::Death => ActionData::Death,
-                        ActionType::TPS => ActionData::TPS(action.tps),
-                        ActionType::Bugpoint => ActionData::Bugpoint,
-                        ActionType::Reserved => continue,
-                    };
-
-                    replay.add_action(crate::Action {
-                        frame: action.frame,
-                        data,
-                    });
-                }
-            }
-        }
-
-        replay
-    }
-
-    pub fn add_atom(&mut self, atom: AtomVariant) {
-        self.atoms.add(atom);
+        todo!()
     }
 }

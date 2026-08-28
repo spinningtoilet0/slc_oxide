@@ -8,10 +8,11 @@ use thiserror::Error;
 use crate::{
     action::Player,
     replay::GenericReplay,
-    v2::{self, InputData, InputError, blob::Blob, input::Input},
+    v2::{self, InputData, blob::Blob, input::Input},
 };
 
 /// An SLC v2 replay.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Replay {
     pub tps: f64,
     pub meta: Vec<u8>,
@@ -39,6 +40,7 @@ impl Replay {
     /// Reads a SLC v2 replay from a stream.
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, ReplayError> {
         let mut header_buf = [0u8; 4];
+
         reader.read_exact(&mut header_buf)?;
 
         if header_buf != Self::HEADER {
@@ -46,12 +48,9 @@ impl Replay {
         }
 
         let mut big_buf = [0u8; 8];
+
         reader.read_exact(&mut big_buf)?;
         let tps = f64::from_le_bytes(big_buf);
-
-        if tps <= 0.0 || !tps.is_normal() {
-            return Err(ReplayError::InputError(InputError::InvalidTPS(tps)));
-        }
 
         reader.read_exact(&mut big_buf)?;
         let meta_size = u64::from_le_bytes(big_buf);
@@ -61,6 +60,7 @@ impl Replay {
 
         reader.read_exact(&mut big_buf)?;
         let length = u64::from_le_bytes(big_buf);
+
         let mut inputs: Vec<Input> = Vec::with_capacity(length as usize);
 
         reader.read_exact(&mut big_buf)?;
@@ -78,6 +78,7 @@ impl Replay {
 
         let mut footer_buf = [0u8; 3];
         reader.read_exact(&mut footer_buf)?;
+
         if footer_buf != Self::FOOTER {
             return Err(ReplayError::FooterMismatchError);
         }
@@ -98,10 +99,6 @@ impl Replay {
         meta: &[u8],
         inputs: &[Input],
     ) -> Result<(), ReplayError> {
-        if tps <= 0.0 || !tps.is_normal() {
-            return Err(ReplayError::InputError(InputError::InvalidTPS(tps)));
-        }
-
         writer.write_all(&Self::HEADER)?;
 
         writer.write_all(&tps.to_le_bytes())?;
@@ -195,7 +192,7 @@ impl Replay {
 
     /// Convert the SLC v2 replay to a [GenericReplay] for easy modification
     /// and conversion to SLC v3.
-    pub fn to_generic_replay(&self) -> Result<GenericReplay, ReplayError> {
+    pub fn to_generic_replay(&self) -> GenericReplay {
         let mut actions = Vec::with_capacity(self.inputs.len());
 
         for input in &self.inputs {
@@ -203,21 +200,16 @@ impl Replay {
                 frame: input.frame,
                 data: match &input.data {
                     InputData::Skip => continue,
-                    InputData::Restart => crate::ActionData::Restart,
-                    InputData::RestartFull => crate::ActionData::RestartFull,
-                    InputData::Death => crate::ActionData::Death,
+                    InputData::Restart => crate::ActionData::Restart { seed: 0 },
+                    InputData::RestartFull => crate::ActionData::RestartFull { seed: 0 },
+                    InputData::Death => crate::ActionData::Death { seed: 0 },
                     InputData::TPS(tps) => crate::ActionData::TPS(*tps),
                     InputData::Player(player_input) => {
                         crate::ActionData::Player(crate::action::PlayerInput {
                             action: match player_input.button {
-                                1 => crate::action::PlayerAction::Jump,
-                                2 => crate::action::PlayerAction::Left,
-                                3 => crate::action::PlayerAction::Right,
-                                x => {
-                                    return Err(ReplayError::InputError(
-                                        InputError::InvalidButton(x),
-                                    ));
-                                }
+                                v2::Button::Jump => crate::action::PlayerAction::Jump,
+                                v2::Button::Left => crate::action::PlayerAction::Left,
+                                v2::Button::Right => crate::action::PlayerAction::Right,
                             },
                             down: player_input.hold,
                             player: if player_input.player_2 {
@@ -231,9 +223,9 @@ impl Replay {
             });
         }
 
-        Ok(GenericReplay {
+        GenericReplay {
             tps: self.tps,
             actions,
-        })
+        }
     }
 }
